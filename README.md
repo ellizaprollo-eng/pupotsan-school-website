@@ -78,25 +78,61 @@ export default async function Home() {
 }
 ```
 
-## Optional Dispatch-Owned ChatGPT Sign-In
+## Admin Login
 
-Import the ready-to-use helpers from `app/chatgpt-auth.ts` when the site needs optional or required ChatGPT sign-in:
+This site is not hosted on chatgpt.site, so admin access uses its own login
+instead of ChatGPT's dispatch-owned sign-in. The whole system lives in
+`app/admin-auth.ts`:
 
-- Use `getChatGPTUser()` for optional signed-in UI.
-- Use the returned `userId` as the stable user key for user-owned records; do not use email as a durable identifier.
-- Use `requireChatGPTUser(returnTo)` for server-rendered pages that should send anonymous visitors through Sign in with ChatGPT.
-- In a Server Component, start sign-in with `<a href={chatGPTSignInPath(returnTo)} target="_top">`. The auth helper module is server-only; do not import it into a Client Component.
-- Do not use `fetch`, XHR, a client-side router, or a framework link that can prefetch the sign-in route. SIWC must start as a top-level navigation.
-- Never request the AuthAPI authorization endpoint directly. The dispatch-owned `/signin-with-chatgpt` route must start the SIWC flow.
-- Use `chatGPTSignOutPath(returnTo)` for browser sign-out links or actions.
-- Pass a same-origin relative `returnTo` path for the destination after sign-in or sign-out. The helper validates and safely encodes it.
-- Mark protected pages with `export const dynamic = "force-dynamic"` because they depend on per-request identity headers.
+- One shared password, set as the `ADMIN_PASSWORD` environment variable —
+  there's no per-user account system, which matches the single-editor
+  reality of a small school site.
+- `SESSION_SECRET` (any long random string) signs the login cookie so it
+  can't be forged. Set it once and leave it alone; rotating it logs
+  everyone out.
+- `/admin` requires a session (`requireAdminUser`); `/admin-login` shows the
+  password form; `/api/admin-login` and `/api/admin-logout` set and clear
+  the `admin_session` cookie.
+- The API routes that write data (`app/api/content/route.ts`,
+  `app/api/upload/route.ts`) check `getAdminUser()` before accepting a
+  request, same as before.
 
-Dispatch owns `/signin-with-chatgpt`, `/signout-with-chatgpt`, `/callback`, the OAuth cookies, and identity header injection. Do not implement app routes for those reserved paths. Routes that do not import and call the helper remain anonymous-compatible.
+To change the admin password later, update `ADMIN_PASSWORD` in your hosting
+provider's environment variables and redeploy — no code changes needed.
 
-SIWC establishes identity only; it does not prove workspace membership. Use the Sites hosting platform's access policy controls for workspace-wide restrictions, or enforce explicit server-side membership or allowlist checks.
+## Deploying this site
 
-Use SIWC for account pages, user-specific dashboards, saved records, and write actions tied to the current ChatGPT user. Leave public content anonymous.
+This starter is built on Cloudflare D1 (database) and R2 (image storage),
+so the natural free home for it is **Cloudflare Workers/Pages**, using your
+own free Cloudflare account:
+
+1. **Create a Cloudflare account** at [dash.cloudflare.com](https://dash.cloudflare.com) (free tier is enough for a school site's traffic).
+2. **Log in from the CLI**: `npx wrangler login` — this opens a browser to authorize.
+3. **Create the D1 database**: `npx wrangler d1 create pupotsan-nhs-db`. Copy the `database_id` it prints.
+4. **Create the R2 bucket**: `npx wrangler r2 bucket create pupotsan-nhs-media`.
+5. **Set build-time env vars** (so the build points at your real database/bucket instead of the local placeholder):
+   ```sh
+   export CF_D1_DATABASE_NAME=pupotsan-nhs-db
+   export CF_D1_DATABASE_ID=<the id from step 3>
+   export CF_R2_BUCKET_NAME=pupotsan-nhs-media
+   ```
+6. **Build**: `npm run build` (generates `dist/server/wrangler.json` with those bindings).
+7. **Set the two app secrets** (do this once per environment):
+   ```sh
+   npx wrangler secret put ADMIN_PASSWORD --config dist/server/wrangler.json
+   npx wrangler secret put SESSION_SECRET --config dist/server/wrangler.json
+   ```
+8. **Run the first D1 migration** against the real database:
+   ```sh
+   npx wrangler d1 execute pupotsan-nhs-db --remote --config dist/server/wrangler.json --file drizzle/0000_regular_white_queen.sql
+   ```
+9. **Deploy**: `npx wrangler deploy --config dist/server/wrangler.json`
+
+Wrangler prints your free URL on deploy, in the form
+`https://<worker-name>.<your-subdomain>.workers.dev`. From the Cloudflare
+dashboard you can also attach a real domain later (Workers Routes / Custom
+Domains) if the school ever buys one — the `.workers.dev` URL works
+immediately and stays free.
 
 ## Local D1 migrations
 

@@ -1,7 +1,7 @@
 import { env } from 'cloudflare:workers';
-import { getChatGPTUser } from '@/app/chatgpt-auth';
+import { getAdminUser } from '@/app/admin-auth';
 export async function POST(request:Request){
-  if(!await getChatGPTUser())return Response.json({error:'Please sign in.'},{status:401});
+  if(!await getAdminUser())return Response.json({error:'Please sign in.'},{status:401});
   if(request.headers.get('origin')!==new URL(request.url).origin)return Response.json({error:'Request origin could not be verified.'},{status:403});
   if(Number(request.headers.get('content-length')||0)>5300000)return Response.json({error:'Choose an image smaller than 5 MB.'},{status:413});
   try{

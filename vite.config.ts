@@ -20,8 +20,11 @@ const localBindingConfig = {
     ? [
         {
           binding: d1,
-          database_name: "site-creator-d1",
-          database_id: SITE_CREATOR_PLACEHOLDER_DATABASE_ID,
+          // Local dev keeps using the placeholder DB. For a real deploy, set
+          // CF_D1_DATABASE_NAME / CF_D1_DATABASE_ID to the database you create
+          // in your own Cloudflare account (see README "Deploying this site").
+          database_name: process.env.CF_D1_DATABASE_NAME || "site-creator-d1",
+          database_id: process.env.CF_D1_DATABASE_ID || SITE_CREATOR_PLACEHOLDER_DATABASE_ID,
         },
       ]
     : [],
@@ -29,7 +32,8 @@ const localBindingConfig = {
     ? [
         {
           binding: r2,
-          bucket_name: "site-creator-r2",
+          // Set CF_R2_BUCKET_NAME to your own bucket name before deploying.
+          bucket_name: process.env.CF_R2_BUCKET_NAME || "site-creator-r2",
         },
       ]
     : [],

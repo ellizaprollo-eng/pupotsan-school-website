@@ -1,19 +1,18 @@
-import { getChatGPTUser } from '@/app/chatgpt-auth';
+import { getAdminUser } from '@/app/admin-auth';
 import { contentDb, getSchoolContent } from '@/lib/school-data';
 import { z } from 'zod';
 const facebook = z.string().max(2000).refine(v=>!v||/^https:\/\/(www\.)?facebook\.com\/(pupotsanNHS(?:\/|\?|$)|photo\/?\?)/i.test(v),'Use a photo or post from the school Facebook page');
 const image = z.string().max(300).refine(v=>!v||/^\/media\/[a-f0-9-]+\.(jpg|png|webp)$/.test(v)||/^\/(campus|school-[a-z-]+)\.(jpg|png|webp)$/.test(v),'Upload a school image first');
 const schema=z.object({revision:z.number().int().min(0),data:z.object({notice:z.string().trim().min(1).max(400),enrollment:z.string().trim().min(1).max(3000),requirements:z.string().trim().min(1).max(3000),seniorHighStrands:z.array(z.string().trim().min(1).max(160)).min(1).max(12),seniorHighCertification:z.string().trim().min(1).max(160),acceptsAls:z.boolean(),heroImage:image,heroSource:facebook,gallery:z.array(z.object({id:z.string().max(60),url:image.refine(v=>!!v),caption:z.string().trim().min(1).max(200),source:facebook.refine(v=>!!v)})).max(24),posts:z.array(z.object({id:z.string().max(60),title:z.string().trim().min(1).max(160),category:z.enum(['Announcement','Enrollment','Campus life','Achievement']),date:z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine(v=>!isNaN(Date.parse(v))),body:z.string().trim().min(1).max(6000),image,source:facebook})).max(50)})});
 export async function GET(){
-  if(!await getChatGPTUser())return Response.json({error:'Please sign in to manage the website.'},{status:401});
+  if(!await getAdminUser())return Response.json({error:'Please sign in to manage the website.'},{status:401});
   const c=await getSchoolContent();
   return Response.json(c,{status:c.available?200:503,headers:{'Cache-Control':'no-store'}});
 }
 export async function PUT(request:Request){
-  const user=await getChatGPTUser();
+  const user=await getAdminUser();
   if(!user)return Response.json({error:'Please sign in to manage the website.'},{status:401});
-  // The Site is owner-private. Platform access control restricts all routes to the owner.
-  // Configure an explicit editor allowlist before changing the Site to a public audience.
+  // Access is gated by the single ADMIN_PASSWORD session — see app/admin-auth.ts.
   const origin=request.headers.get('origin');
   if(!origin||origin!==new URL(request.url).origin)return Response.json({error:'Request origin could not be verified.'},{status:403});
   if(Number(request.headers.get('content-length')||0)>500000)return Response.json({error:'Content is too large.'},{status:413});
